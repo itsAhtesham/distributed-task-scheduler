@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: task_scheduler
+      POSTGRES_USER: scheduler
+      POSTGRES_PASSWORD: scheduler_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scheduler -d task_scheduler"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    command: npx tsx src/index.ts
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://scheduler:scheduler_pass@postgres:5432/task_scheduler
+      REDIS_URL: redis://redis:6379
+      PORT: "3000"
+      API_KEY: test-api-key-12345
+      RATE_LIMIT_MAX: "100"
+      RATE_LIMIT_WINDOW_MS: "60000"
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker-1:
+    build: .
+    command: npx tsx src/worker.ts
+    environment:
+      DATABASE_URL: postgresql://scheduler:scheduler_pass@postgres:5432/task_scheduler
+      REDIS_URL: redis://redis:6379
+      WORKER_ID: worker-1
+      API_KEY: test-api-key-12345
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker-2:
+    build: .
+    command: npx tsx src/worker.ts
+    environment:
+      DATABASE_URL: postgresql://scheduler:scheduler_pass@postgres:5432/task_scheduler
+      REDIS_URL: redis://redis:6379
+      WORKER_ID: worker-2
+      API_KEY: test-api-key-12345
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker-3:
+    build: .
+    command: npx tsx src/worker.ts
+    environment:
+      DATABASE_URL: postgresql://scheduler:scheduler_pass@postgres:5432/task_scheduler
+      REDIS_URL: redis://redis:6379
+      WORKER_ID: worker-3
+      API_KEY: test-api-key-12345
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
