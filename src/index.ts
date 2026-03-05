@@ -10,13 +10,30 @@ import { errorHandler } from './api/middlewares/errorHandler.js';
 import jobsRoutes from './api/routes/jobs.routes.js';
 import webhooksRoutes from './api/routes/webhooks.routes.js';
 import healthRoutes from './api/routes/health.routes.js';
+import docsRoutes from './api/routes/docs.routes.js';
 
 const app = express();
 
 // Global middlewares
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", 'https://unpkg.com'],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://unpkg.com'],
+        imgSrc: ["'self'", 'data:', 'https://unpkg.com'],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'", 'https://unpkg.com'],
+      },
+    },
+  })
+);
 app.use(cors());
 app.use(express.json());
+
+// Docs routes (no auth required)
+app.use('/', docsRoutes);
 
 // Health check (no auth required)
 app.use('/api/v1/health', healthRoutes);

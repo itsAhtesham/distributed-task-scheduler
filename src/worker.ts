@@ -85,8 +85,9 @@ async function shutdown(): Promise<void> {
   // Stop heartbeat
   heartbeat.stop();
 
-  // Drain in-progress tasks
+  // Drain in-progress tasks and DLQ messages
   await taskConsumer.drain();
+  await dlqProcessor.drain();
 
   // Close connections
   await closeRedisConnection();

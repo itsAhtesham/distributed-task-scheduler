@@ -20,6 +20,11 @@ const envSchema = z.object({
   HEARTBEAT_INTERVAL_MS: z.coerce.number().default(5000),
   SCHEDULER_POLL_INTERVAL_MS: z.coerce.number().default(10000),
 
+  // DLQ
+  DLQ_POLL_INTERVAL_MS: z.coerce.number().default(30000),
+  DLQ_BATCH_SIZE: z.coerce.number().default(20),
+  DLQ_RETENTION_HOURS: z.coerce.number().default(168),
+
   // Webhook
   WEBHOOK_TIMEOUT_MS: z.coerce.number().default(5000),
   WEBHOOK_MAX_RETRIES: z.coerce.number().default(3),

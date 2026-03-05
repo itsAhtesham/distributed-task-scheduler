@@ -112,6 +112,64 @@ export async function readTasks(
   return tasks;
 }
 
+const DLQ_CONSUMER_GROUP = 'dlq_workers';
+
+export async function readDLQFromGroup(
+  consumerId: string,
+  count: number = 10,
+  blockMs: number = 2000
+): Promise<Array<{ id: string; fields: Record<string, string> }>> {
+  const result = await redis.xreadgroup(
+    'GROUP', DLQ_CONSUMER_GROUP, consumerId,
+    'COUNT', String(count),
+    'BLOCK', String(blockMs),
+    'STREAMS', TASK_DLQ, '>'
+  );
+
+  if (!result) return [];
+
+  const messages: Array<{ id: string; fields: Record<string, string> }> = [];
+
+  for (const [, entries] of result as Array<[string, Array<[string, string[]]>]>) {
+    for (const [id, fields] of entries) {
+      const fieldMap: Record<string, string> = {};
+      for (let i = 0; i < fields.length; i += 2) {
+        fieldMap[fields[i]] = fields[i + 1];
+      }
+      messages.push({ id, fields: fieldMap });
+    }
+  }
+
+  return messages;
+}
+
+export async function acknowledgeDLQMessage(messageId: string): Promise<void> {
+  await redis.xack(TASK_DLQ, DLQ_CONSUMER_GROUP, messageId);
+}
+
+export async function purgeDLQOlderThan(maxAgeMs: number): Promise<number> {
+  const cutoff = Date.now() - maxAgeMs;
+  const result = await redis.xrange(TASK_DLQ, '-', '+');
+  if (!result) return 0;
+
+  let deleted = 0;
+  for (const [id, fields] of result as Array<[string, string[]]>) {
+    const fieldMap: Record<string, string> = {};
+    for (let i = 0; i < fields.length; i += 2) {
+      fieldMap[fields[i]] = fields[i + 1];
+    }
+    if (fieldMap.failed_at) {
+      const failedAt = new Date(fieldMap.failed_at).getTime();
+      if (failedAt < cutoff) {
+        await redis.xdel(TASK_DLQ, id);
+        deleted++;
+      }
+    }
+  }
+
+  return deleted;
+}
+
 export async function readDLQMessages(count: number = 10): Promise<Array<{ id: string; fields: Record<string, string> }>> {
   const result = await redis.xrange(TASK_DLQ, '-', '+', 'COUNT', count);
   if (!result) return [];
@@ -158,4 +216,4 @@ export async function purgeDLQ(): Promise<number> {
   return result;
 }
 
-export { TASK_QUEUE, TASK_DLQ, CONSUMER_GROUP };
+export { TASK_QUEUE, TASK_DLQ, CONSUMER_GROUP, DLQ_CONSUMER_GROUP };
